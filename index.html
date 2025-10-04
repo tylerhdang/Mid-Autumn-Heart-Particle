@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heart Particle System</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #info {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Drag to rotate • Scroll to zoom</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, heartParticles, textSpiral, stars, floatingHearts, mouse, isMouseDown;
+        let targetRotationX = 0, targetRotationY = 0;
+        let currentRotationX = 0, currentRotationY = 0;
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 8;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            mouse = { x: 0, y: 0, prevX: 0, prevY: 0 };
+            isMouseDown = false;
+
+            createStarfield();
+            createHeartParticles();
+            createCenterText();
+            createTextSpiral();
+            createFloatingHearts();
+
+            setupEventListeners();
+            animate();
+        }
+
+        function createStarfield() {
+            const geometry = new THREE.BufferGeometry();
+            const starCount = 2000;
+            const positions = new Float32Array(starCount * 3);
+            const colors = new Float32Array(starCount * 3);
+
+            for (let i = 0; i < starCount; i++) {
+                const radius = 50 + Math.random() * 50;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+
+                positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+                positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 2] = radius * Math.cos(phi);
+
+                const brightness = 0.7 + Math.random() * 0.3;
+                colors[i * 3] = brightness;
+                colors[i * 3 + 1] = brightness;
+                colors[i * 3 + 2] = brightness + Math.random() * 0.2;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 0.15,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8
+            });
+
+            stars = new THREE.Points(geometry, material);
+            scene.add(stars);
+        }
+
+        function createHeartParticles() {
+            const geometry = new THREE.BufferGeometry();
+            const particleCount = 8000;
+            const positions = new Float32Array(particleCount * 3);
+            const colors = new Float32Array(particleCount * 3);
+
+            for (let i = 0; i < particleCount; i++) {
+                const t = Math.random() * Math.PI * 2;
+                
+                const x = 16 * Math.pow(Math.sin(t), 3);
+                const y = 13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t);
+                const z = (Math.random() - 0.5) * 3;
+
+                const scale = 0.15;
+                positions[i * 3] = x * scale;
+                positions[i * 3 + 1] = y * scale;
+                positions[i * 3 + 2] = z;
+
+                const distFromCenter = Math.sqrt(x*x + y*y) / 20;
+                colors[i * 3] = 1.0;
+                colors[i * 3 + 1] = 0.1 + distFromCenter * 0.2;
+                colors[i * 3 + 2] = 0.1 + distFromCenter * 0.2;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 0.05,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending
+            });
+
+            heartParticles = new THREE.Points(geometry, material);
+            scene.add(heartParticles);
+        }
+
+        function createCenterText() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 1024;
+            canvas.height = 256;
+            
+            // Draw the center text
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 80px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('Thuyênnnnn iu dấu', 512, 128);
+            
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+
+            // Create sprite for center text
+            const spriteMaterial = new THREE.SpriteMaterial({
+                map: texture,
+                transparent: true,
+                opacity: 0.95,
+                color: 0xff3366
+            });
+            
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.position.set(0, 0, 0);
+            sprite.scale.set(12, 3, 1);
+            
+            heartParticles.add(sprite);
+        }
+
+        function createTextSpiral() {
+            const messages = [
+                'Chúc em yêu Tết Trung Thu vui vẻ',
+                'Yêu em quá trời',
+                'Trăng tròn đẹp tựa mơ',
+                'Vạn sự như ý',
+                '+1000 bánh trung thu cho emm'
+            ];
+
+            textSpiral = new THREE.Group();
+            
+            messages.forEach((message, index) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 1024;
+                canvas.height = 128;
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 60px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(message, 512, 64);
+                
+                const texture = new THREE.Texture(canvas);
+                texture.needsUpdate = true;
+
+                const spriteMaterial = new THREE.SpriteMaterial({
+                    map: texture,
+                    transparent: true,
+                    opacity: 0.9,
+                    color: 0xffffff
+                });
+                
+                const sprite = new THREE.Sprite(spriteMaterial);
+                
+                // Position messages around the heart at different angles and distances
+                const angle = (index / messages.length) * Math.PI * 2;
+                const radius = 5 + Math.random() * 2;
+                sprite.position.x = Math.cos(angle) * radius;
+                sprite.position.z = Math.sin(angle) * radius;
+                sprite.position.y = -3 + (Math.random() * 6);
+                
+                sprite.scale.set(8, 1, 1);
+                
+                // Store initial position for animation
+                sprite.userData.initialY = sprite.position.y;
+                sprite.userData.floatSpeed = 0.5 + Math.random() * 0.5;
+                sprite.userData.floatOffset = Math.random() * Math.PI * 2;
+                
+                textSpiral.add(sprite);
+            });
+
+            scene.add(textSpiral);
+        }
+
+        function createFloatingHearts() {
+            const heartShape = new THREE.Shape();
+            
+            const x = 0, y = 0;
+            heartShape.moveTo(x + 0.5, y + 0.5);
+            heartShape.bezierCurveTo(x + 0.5, y + 0.3, x + 0.4, y, x, y);
+            heartShape.bezierCurveTo(x - 0.6, y, x - 0.6, y + 0.35, x - 0.6, y + 0.35);
+            heartShape.bezierCurveTo(x - 0.6, y + 0.55, x - 0.4, y + 0.77, x + 0.05, y + 0.95);
+            heartShape.bezierCurveTo(x + 0.4, y + 0.77, x + 0.6, y + 0.55, x + 0.6, y + 0.35);
+            heartShape.bezierCurveTo(x + 0.6, y + 0.35, x + 0.6, y, x + 0.5, y);
+            heartShape.bezierCurveTo(x + 0.3, y, x + 0.5, y + 0.3, x + 0.5, y + 0.5);
+
+            const extrudeSettings = {
+                depth: 0.3,
+                bevelEnabled: true,
+                bevelThickness: 0.1,
+                bevelSize: 0.1,
+                bevelSegments: 2
+            };
+
+            const heartGeometry = new THREE.ExtrudeGeometry(heartShape, extrudeSettings);
+
+            floatingHearts = new THREE.Group();
+
+            for (let i = 0; i < 3; i++) {
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0xff6b9d,
+                    transparent: true,
+                    opacity: 0.9
+                });
+
+                const heart = new THREE.Mesh(heartGeometry, material);
+                
+                heart.scale.set(0.3, 0.3, 0.3);
+                heart.position.x = (Math.random() - 0.5) * 3;
+                heart.position.y = -1 + (Math.random() - 0.5) * 2;
+                heart.position.z = (Math.random() - 0.5) * 2;
+                heart.rotation.z = Math.random() * Math.PI;
+                
+                floatingHearts.add(heart);
+            }
+
+            scene.add(floatingHearts);
+        }
+
+        function setupEventListeners() {
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Gentle rotation of text group
+            textSpiral.rotation.y += 0.003;
+            
+            // Animate each text message floating up and down
+            textSpiral.children.forEach((sprite) => {
+                sprite.position.y = sprite.userData.initialY + Math.sin(Date.now() * 0.001 * sprite.userData.floatSpeed + sprite.userData.floatOffset) * 0.5;
+            });
+
+            // Gentle star rotation
+            stars.rotation.y += 0.0001;
+            stars.rotation.x += 0.00005;
+
+            // Pulse effect
+            const scale = 1 + Math.sin(Date.now() * 0.001) * 0.05;
+            heartParticles.scale.set(scale, scale, scale);
+
+            // Animate floating hearts
+            floatingHearts.children.forEach((heart, i) => {
+                heart.rotation.y += 0.01 * (i + 1);
+                heart.position.y += Math.sin(Date.now() * 0.001 + i) * 0.001;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+    </script>
+</body>
+</html>
